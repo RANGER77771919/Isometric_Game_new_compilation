@@ -1,0 +1,72 @@
+# Build directories
+build/
+cmake-build-*/
+out/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+
+# Compiled files
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.o
+*.obj
+*.pch
+*.gch
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Dependencies (si se compilan localmente)
+externals/bin/
+externals/lib/
+externals/include/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Project specific
+assets/backup/
+*.autosave
+
+# Debug
+*.pdb
+*.ilk
+*.exp
+
+# Release binaries (opcional: comenta si quieres subir los .exe)
+# Release/
+# Debug/
+nul

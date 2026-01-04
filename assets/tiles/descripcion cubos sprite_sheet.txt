@@ -1,0 +1,13 @@
+cubos_tiles_Sheet.png
+Es una fila png de 32px x 9 cubos
+
+1 = grass
+2 = blood_grass
+3 = sand
+4 = black dirt
+5 = dirt
+6 = dirt_alt
+7 = full_blood_grass
+8 = snow
+9 = water
+

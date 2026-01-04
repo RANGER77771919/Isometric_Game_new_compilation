@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "Bash(cmake:*)",
+      "Bash(make:*)",
+      "Bash(mingw32-make:*)",
+      "Bash(pacman:*)",
+      "Bash(where:*)",
+      "Bash(\"C:/msys64/usr/bin/pacman.exe\":*)",
+      "Bash(dir:*)",
+      "Bash(./Isometrico2D.exe)",
+      "Bash(cat:*)",
+      "Bash(c++.exe:*)",
+      "Bash(C:/msys64/usr/bin/pacman.exe:*)",
+      "Bash(ls:*)",
+      "Bash(xargs:*)",
+      "Bash(timeout:*)",
+      "Bash(python:*)",
+      "Bash(C:msys64ucrt64binc++.exe:*)",
+      "Bash(cmd //c '\"\"C:\\\\msys64\\\\ucrt64\\\\bin\\\\c++.exe\"\" -Wl,--whole-archive CMakeFiles\\\\Isometrico2D.dir\\\\objects.a -Wl,--no-whole-archive -o Isometrico2D.exe -Wl,--out-implib,libIsometrico2D.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\\\\Isometrico2D.dir\\\\linkLibs.rsp')",
+      "Bash(chmod:*)",
+      "Bash(bash \"C:\\\\Users\\\\RanDeko\\\\Desktop\\\\Proyect\\\\Isometric-Game-main\\\\build\\\\link.sh\")",
+      "Bash(C:/msys64/ucrt64/bin/c++..exe:*)",
+      "Bash(bash \"C:\\\\Users\\\\RanDeko\\\\Desktop\\\\Proyect\\\\Isometric-Game-main\\\\build\\\\link2.sh\")",
+      "Bash(C:/msys64/ucrt64/bin/c++.exe:*)",
+      "Bash(src/main.cpp src/Game.cpp src/Renderer.cpp src/World.cpp src/Chunk.cpp src/Camera.cpp )",
+      "Bash(C:/msys64/ucrt64/lib/libSDL2main.a C:/msys64/ucrt64/lib/libSDL2.a )",
+      "Bash(CMakeFiles/Isometrico2D.dir/objects.a )",
+      "Bash(C:/msys64/ucrt64/lib/libSDL2main.a )",
+      "Bash(C:/msys64/ucrt64/lib/libSDL2.dll.a )",
+      "Bash(../test_sdl.cpp -o test_sdl.exe )",
+      "Bash(nm:*)",
+      "Bash(tee:*)"
+    ]
+  }
+}

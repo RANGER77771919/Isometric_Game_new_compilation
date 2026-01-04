@@ -1,0 +1,37 @@
+# CRÉDITOS - Juego Isométrico 2D Sandbox
+
+## DESARROLLADO POR
+- Tu nombre / Estudio
+
+## TECNOLOGÍAS UTILIZADAS
+
+### Motores y Librerías
+- **SDL2** (Simple DirectMedia Layer)
+  Licencia: zlib License
+  https://www.libsdl.org/
+
+- **FastNoiseLite**
+  Licencia: MIT License
+  Copyright (c) 2023 Jordan Peck
+  https://github.com/Auburn/FastNoiseLite
+
+- **stb_image**
+  Licencia: MIT License
+  Copyright (c) 2017 Sean Barrett
+  https://github.com/nothings/stb
+
+### Herramientas de Desarrollo
+- **CMake** - Sistema de build
+- **C++20** - Lenguaje de programación
+
+## ASSETS
+- Texturas de tiles: Carpeta assets/tiles/
+
+## AGRADECIMIENTOS
+- Comunidad de SDL2
+- Comunidad de desarrollo de videojuegos
+- Contribuidores de librerías open source
+
+---
+
+Este software utiliza librerías open source. Ver archivo LICENSES.txt para más información.

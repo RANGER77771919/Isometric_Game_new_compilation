@@ -1,0 +1,24 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "mingw64-default",
+            "displayName": "MinGW64 Default Config",
+            "generator": "MinGW Makefiles",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_C_COMPILER": "C:/msys64/mingw64/bin/gcc.exe",
+                "CMAKE_CXX_COMPILER": "C:/msys64/mingw64/bin/g++.exe",
+                "CMAKE_C_FLAGS": "-I/c/msys64/mingw64/include",
+                "CMAKE_CXX_FLAGS": "-I/c/msys64/mingw64/include"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "mingw64-default",
+            "configurePreset": "mingw64-default"
+        }
+    ]
+}
