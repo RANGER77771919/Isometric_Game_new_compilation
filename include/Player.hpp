@@ -249,23 +249,9 @@ private:
      * @param world Puntero al mundo
      * @return true si hay espacio para saltar
      *
-     * El jugador puede saltar si hay 2 bloques libres arriba:
-     * - (m_posX, m_posY + 1, m_posZ) libre
-     * - (m_posX, m_posY + 2, m_posZ) libre
+     * OPTIMIZADO: El jugador puede saltar si hay 2 bloques libres arriba.
      */
     bool canJump(World* world) const;
-
-    /**
-     * @brief Detecta si hay auto-jump posible
-     * @param dx Dirección X del movimiento
-     * @param dz Dirección Z del movimiento
-     * @param world Puntero al mundo
-     * @return true si hay un bloque que requiere salto
-     *
-     * Auto-jump: Si hay un bloque adelante pero espacio arriba,
-     * automáticamente salta y se mueve.
-     */
-    bool detectAutoJump(int dx, int dz, World* world) const;
 };
 
 #endif // PLAYER_HPP

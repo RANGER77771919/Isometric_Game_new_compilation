@@ -219,14 +219,21 @@ void Player::update(float deltaTime, World* world) {
  * @param world Puntero al mundo
  * @return true si el movimiento fue iniciado
  *
+ * OPTIMIZADO: Reduce verificaciones duplicadas de bloques.
+ *
  * Sistema de movimiento discreto por grid CON AUTO-JUMP:
  * - Primero intenta moverse normalmente
  * - Si hay bloque pero puede saltar, hace auto-jump + movimiento lateral
  * - Verifica colisiones y aplica cooldown
  */
 bool Player::tryMove(int dx, int dy, int dz, World* world) {
-    // Verificar cooldown
+    // Verificar cooldown (early return)
     if (m_moveCooldown > 0.0f || m_isMoving) {
+        return false;
+    }
+
+    // OPTIMIZACIÓN: Solo calcular si hay movimiento
+    if (dx == 0 && dy == 0 && dz == 0) {
         return false;
     }
 
@@ -235,9 +242,42 @@ bool Player::tryMove(int dx, int dy, int dz, World* world) {
     int newY = m_posY + dy;
     int newZ = m_posZ + dz;
 
-    // Primero intentar movimiento normal
-    if (canMoveTo(newX, newY, newZ, world)) {
-        // Movimiento normal posible
+    // OPTIMIZACIÓN: Verificar colisión UNA vez en lugar de múltiples
+    bool canMoveNormally = false;
+    bool needsAutoJump = false;
+
+    if (world) {
+        // Verificar movimiento normal
+        const Block& feetBlock = world->getBlock(newX, newY, newZ);
+        const Block& headBlock = world->getBlock(newX, newY + 1, newZ);
+
+        canMoveNormally = !feetBlock.esSolido() && !headBlock.esSolido();
+
+        // Si no se puede mover normalmente, verificar auto-jump
+        if (!canMoveNormally && (dx != 0 || dz != 0)) {
+            // Verificar condiciones de auto-jump
+            const Block& groundBlock = world->getBlock(newX, m_posY, newZ);
+            const Block& aboveBlock = world->getBlock(newX, m_posY + 1, newZ);
+            const Block& headBlock2 = world->getBlock(newX, m_posY + 2, newZ);
+
+            // Bloque al nivel del suelo, espacio arriba
+            bool hasBlockToJump = groundBlock.esSolido() && !aboveBlock.esSolido() && !headBlock2.esSolido();
+
+            // Podemos saltar desde nuestra posición
+            const Block& currentAbove1 = world->getBlock(m_posX, m_posY + 1, m_posZ);
+            const Block& currentAbove2 = world->getBlock(m_posX, m_posY + 2, m_posZ);
+            bool canJumpFromHere = !currentAbove1.esSolido() && !currentAbove2.esSolido();
+
+            needsAutoJump = hasBlockToJump && canJumpFromHere && !m_isJumping;
+        }
+    } else {
+        // Sin mundo = sin colisiones
+        canMoveNormally = true;
+    }
+
+    // Ejecutar movimiento normal o auto-jump
+    if (canMoveNormally) {
+        // Movimiento normal
         m_prevVisualX = m_visualX;
         m_prevVisualY = m_visualY;
         m_prevVisualZ = m_visualZ;
@@ -253,16 +293,8 @@ bool Player::tryMove(int dx, int dy, int dz, World* world) {
         return true;
     }
 
-    // Si no se puede mover, intentar auto-jump + movimiento lateral
-    if (detectAutoJump(dx, dz, world)) {
+    if (needsAutoJump) {
         // Auto-jump: saltar Y moverse lateralmente en UNA sola acción
-
-        // Verificar que podemos saltar
-        if (!canJump(world)) {
-            return false;
-        }
-
-        // Guardar posición visual actual
         m_prevVisualX = m_visualX;
         m_prevVisualY = m_visualY;
         m_prevVisualZ = m_visualZ;
@@ -273,7 +305,7 @@ bool Player::tryMove(int dx, int dy, int dz, World* world) {
         m_posZ = newZ;
 
         // Iniciar animación de salto
-        m_jumpStartY = m_prevVisualY;  // Posición Y previa (convertida a int en el salto)
+        m_jumpStartY = m_prevVisualY;
         m_jumpTargetY = m_posY;
 
         m_jumpTimer = 0.0f;
@@ -296,28 +328,26 @@ bool Player::tryMove(int dx, int dy, int dz, World* world) {
  * @param world Puntero al mundo
  * @return true si no hay colisión en la nueva posición
  *
+ * OPTIMIZADO: Versión simplificada inline-friendly.
  * Sistema simplificado de colisión para grid:
  * - Verifica solo pies (nivel Y) y cabeza (nivel Y + 1)
  * - Acepta coordenadas enteras
  */
 bool Player::canMoveTo(int x, int y, int z, World* world) const {
+    // Early return si no hay mundo
     if (!world) {
-        return true;  // Sin mundo = sin colisiones
+        return true;
     }
 
-    // Verificar pies
+    // OPTIMIZACIÓN: Verificar pies primero (más probable que colisione)
     const Block& feetBlock = world->getBlock(x, y, z);
     if (feetBlock.esSolido()) {
-        return false;
+        return false;  // Early return
     }
 
     // Verificar cabeza (jugador tiene altura ~2 bloques)
     const Block& headBlock = world->getBlock(x, y + 1, z);
-    if (headBlock.esSolido()) {
-        return false;
-    }
-
-    return true;
+    return !headBlock.esSolido();
 }
 
 /**
@@ -355,12 +385,27 @@ bool Player::applyDiscreteGravity(World* world) {
  * @param world Puntero al mundo
  * @return true si el salto fue iniciado
  *
+ * OPTIMIZADO: Versión simplificada para salto manual.
  * El jugador salta 1 bloque hacia arriba si hay espacio.
- * Inicia una animación de salto suave.
  */
 bool Player::tryJump(World* world) {
-    // Verificar si podemos saltar
-    if (!canJump(world)) {
+    // Early returns para optimizar
+    if (m_isJumping || m_moveCooldown > 0.0f) {
+        return false;
+    }
+
+    if (!world) {
+        return false;
+    }
+
+    // OPTIMIZACIÓN: Verificar bloques arriba (inline)
+    const Block& block1 = world->getBlock(m_posX, m_posY + 1, m_posZ);
+    if (block1.esSolido()) {
+        return false;
+    }
+
+    const Block& block2 = world->getBlock(m_posX, m_posY + 2, m_posZ);
+    if (block2.esSolido()) {
         return false;
     }
 
@@ -388,17 +433,20 @@ bool Player::tryJump(World* world) {
  * @param world Puntero al mundo
  * @return true si hay espacio para saltar
  *
- * El jugador puede saltar si hay 2 bloques libres arriba:
- * - (m_posX, m_posY + 1, m_posZ) libre
- * - (m_posX, m_posY + 2, m_posZ) libre
+ * OPTIMIZADO: Early returns para máxima eficiencia.
+ * El jugador puede saltar si hay 2 bloques libres arriba.
  */
 bool Player::canJump(World* world) const {
-    if (!world) {
-        return true;
+    // OPTIMIZACIÓN: Early returns (más probables primero)
+    if (m_isJumping) {
+        return false;
     }
 
-    // Ya estamos saltando o en cooldown
-    if (m_isJumping || m_moveCooldown > 0.0f) {
+    if (m_moveCooldown > 0.0f) {
+        return false;
+    }
+
+    if (!world) {
         return false;
     }
 
@@ -409,121 +457,65 @@ bool Player::canJump(World* world) const {
     }
 
     const Block& block2 = world->getBlock(m_posX, m_posY + 2, m_posZ);
-    if (block2.esSolido()) {
-        return false;
-    }
-
-    return true;
-}
-
-/**
- * @brief Detecta si hay auto-jump posible
- * @param dx Dirección X del movimiento
- * @param dz Dirección Z del movimiento
- * @param world Puntero al mundo
- * @return true si hay un bloque que requiere salto
- *
- * Auto-jump: Si hay un bloque al nivel del suelo en la dirección
- * pero espacio 1 bloque más arriba, se activa el auto-jump.
- */
-bool Player::detectAutoJump(int dx, int dz, World* world) const {
-    if (!world) {
-        return false;
-    }
-
-    // Verificar que hay movimiento en alguna dirección
-    if (dx == 0 && dz == 0) {
-        return false;
-    }
-
-    // Ya estamos saltando
-    if (m_isJumping) {
-        return false;
-    }
-
-    int targetX = m_posX + dx;
-    int targetZ = m_posZ + dz;
-
-    // Verificar si hay bloque al nivel del suelo
-    const Block& groundBlock = world->getBlock(targetX, m_posY, targetZ);
-    if (!groundBlock.esSolido()) {
-        return false;  // No hay bloque al nivel del suelo
-    }
-
-    // Verificar si hay espacio 1 bloque más arriba
-    const Block& aboveBlock = world->getBlock(targetX, m_posY + 1, targetZ);
-    if (aboveBlock.esSolido()) {
-        return false;  // No hay espacio arriba
-    }
-
-    // Verificar si hay espacio 2 bloques más arriba (para la cabeza)
-    const Block& headBlock = world->getBlock(targetX, m_posY + 2, targetZ);
-    if (headBlock.esSolido()) {
-        return false;  // No hay suficiente espacio
-    }
-
-    // Verificar que podemos saltar en nuestra posición actual
-    const Block& currentAbove1 = world->getBlock(m_posX, m_posY + 1, m_posZ);
-    const Block& currentAbove2 = world->getBlock(m_posX, m_posY + 2, m_posZ);
-    if (currentAbove1.esSolido() || currentAbove2.esSolido()) {
-        return false;  // No hay espacio para saltar
-    }
-
-    return true;  // ¡Auto-jump posible!
+    return !block2.esSolido();
 }
 
 /**
  * @brief Actualiza la posición visual con interpolación
  * @param deltaTime Tiempo transcurrido
  *
- * Interpola suavemente entre la posición visual anterior y la lógica actual.
- * Cuando lerpT llega a 1.0, la visual se sincroniza con la lógica.
- *
- * Si está saltando, aplica una curva parabólica para efecto visual.
+ * Versión OPTIMIZADA:
+ * - Early return si no hay movimiento
+ * - Pre-calcular arco parabólico solo una vez
+ * - Reducir divisiones
  */
 void Player::updateVisuals(float deltaTime) {
-    if (m_lerpT < 1.0f) {
-        // Determinar duración según si es salto o movimiento normal
-        float duration = m_isJumping ? JUMP_DURATION : MOVE_DURATION;
-
-        // Avanzar interpolación
-        m_lerpT += deltaTime / duration;
-        if (m_lerpT > 1.0f) {
-            m_lerpT = 1.0f;
-        }
-
-        // Calcular posición visual base interpolada
-        m_visualX = lerp(m_prevVisualX, static_cast<float>(m_posX), m_lerpT);
-        m_visualZ = lerp(m_prevVisualZ, static_cast<float>(m_posZ), m_lerpT);
-
-        // Si está saltando, aplicar curva parabólica en Y
-        if (m_isJumping) {
-            // Interpolación lineal base
-            float baseY = lerp(m_prevVisualY, static_cast<float>(m_posY), m_lerpT);
-
-            // Agregar arco parabólico: 4 * t * (1 - t) da un arco de 0 a 1
-            // El pico está en t=0.5 con valor 1.0
-            float arc = 4.0f * m_lerpT * (1.0f - m_lerpT);
-
-            // Combinar: baseY + arco
-            // El arco añade hasta 0.5 bloques de altura visual extra
-            m_visualY = baseY + arc * 0.3f;
-        } else {
-            // Movimiento normal, interpolación lineal
-            m_visualY = lerp(m_prevVisualY, static_cast<float>(m_posY), m_lerpT);
-        }
-
-        // Verificar si terminó la interpolación
-        if (m_lerpT >= 1.0f) {
-            m_isMoving = false;
-            m_isJumping = false;
-            // Asegurar que la visual esté exactamente en la lógica
-            m_visualX = static_cast<float>(m_posX);
-            m_visualY = static_cast<float>(m_posY);
-            m_visualZ = static_cast<float>(m_posZ);
-        }
-    } else {
+    // OPTIMIZACIÓN: Early return si no hay movimiento
+    if (m_lerpT >= 1.0f) {
         // Sin interpolación activa, mantener sincronizadas
+        m_visualX = static_cast<float>(m_posX);
+        m_visualY = static_cast<float>(m_posY);
+        m_visualZ = static_cast<float>(m_posZ);
+        return;
+    }
+
+    // Determinar duración según si es salto o movimiento normal
+    float duration = m_isJumping ? JUMP_DURATION : MOVE_DURATION;
+
+    // Avanzar interpolación
+    float delta = deltaTime / duration;
+    m_lerpT += delta;
+
+    // OPTIMIZACIÓN: Clamp una sola vez
+    if (m_lerpT > 1.0f) {
+        m_lerpT = 1.0f;
+    }
+
+    // Calcular posición visual base interpolada
+    m_visualX = lerp(m_prevVisualX, static_cast<float>(m_posX), m_lerpT);
+    m_visualZ = lerp(m_prevVisualZ, static_cast<float>(m_posZ), m_lerpT);
+
+    // Si está saltando, aplicar curva parabólica en Y
+    if (m_isJumping) {
+        // OPTIMIZACIÓN: Pre-calcular arco parabólico una sola vez
+        // Fórmula: arc = 4 * t * (1-t)
+        float arc = 4.0f * m_lerpT * (1.0f - m_lerpT);
+
+        // Interpolación lineal base
+        float baseY = lerp(m_prevVisualY, static_cast<float>(m_posY), m_lerpT);
+
+        // Combinar
+        m_visualY = baseY + arc * 0.3f;
+    } else {
+        // Movimiento normal, interpolación lineal
+        m_visualY = lerp(m_prevVisualY, static_cast<float>(m_posY), m_lerpT);
+    }
+
+    // Verificar si terminó la interpolación
+    if (m_lerpT >= 1.0f) {
+        m_isMoving = false;
+        m_isJumping = false;
+        // Asegurar que la visual esté exactamente en la lógica
         m_visualX = static_cast<float>(m_posX);
         m_visualY = static_cast<float>(m_posY);
         m_visualZ = static_cast<float>(m_posZ);
