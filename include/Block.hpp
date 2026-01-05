@@ -45,6 +45,10 @@ enum class BlockType : uint8_t {
     PASTO_FULL,      ///< Pasto denso
     NIEVE,           ///< Nieve
     AGUA,            ///< Agua
+    ARBOL_SECO,      ///< Árbol seco para biomas secos (dirt/sand)
+    ARBOL_GRASS,     ///< Árbol vivo para biomas de grass
+    ARBOL_SANGRE,    ///< Árbol de sangre para biomas de blood_grass
+    ARBOL_COLISION,  ///< Bloque invisible de colisión para la base de los árboles
     TOTAL_TIPOS      ///< Total de tipos de bloques (marcador, no usado)
 };
 

@@ -28,13 +28,19 @@ TextureManager::TextureManager(SDL_Renderer* renderer)
  * @brief Destructor - libera todas las texturas cargadas
  *
  * Itera sobre el mapa y destruye cada textura con SDL_DestroyTexture().
- * También libera el sprite sheet si está cargado.
+ * También libera el sprite sheet y el sprite sheet de árboles si están cargados.
  */
 TextureManager::~TextureManager() {
     // Liberar sprite sheet
     if (m_spriteSheet) {
         SDL_DestroyTexture(m_spriteSheet);
         m_spriteSheet = nullptr;
+    }
+
+    // Liberar sprite sheet de árboles
+    if (m_treeSpriteSheet) {
+        SDL_DestroyTexture(m_treeSpriteSheet);
+        m_treeSpriteSheet = nullptr;
     }
 
     // Liberar todas las texturas del mapa
@@ -139,6 +145,7 @@ SDL_Texture* TextureManager::getTexture(const std::string& name) const {
  *
  * Ahora carga el sprite sheet que contiene todos los tiles:
  * - cubos_tiles_Sheet.png (9 tiles en una fila, cada uno de 32px)
+ * - sprite_sheet_tres.png (60 árboles en 5 filas x 12 columnas, cada uno de 64px)
  * - player.png (textura separada del jugador)
  *
  * Los tiles del sprite sheet se mapean por índice (0-8) a BlockType:
@@ -157,6 +164,14 @@ bool TextureManager::loadAllTextures() {
         m_spriteSheet = m_textures["sprite_sheet"].texture;
     }
 
+    // Cargar el sprite sheet de árboles
+    success &= loadTexture("tree_sprite_sheet", "assets/tiles/sprite_sheet_tres.png");
+
+    // Guardar puntero al sprite sheet de árboles para acceso rápido
+    if (m_textures.find("tree_sprite_sheet") != m_textures.end()) {
+        m_treeSpriteSheet = m_textures["tree_sprite_sheet"].texture;
+    }
+
     // Cargar textura del jugador (separada del sprite sheet)
     success &= loadTexture("player", "assets/tiles/player.png");
 
@@ -169,7 +184,18 @@ bool TextureManager::loadAllTextures() {
     spriteSheetInfo.scaledWidth = SPRITE_TILE_SIZE;
     spriteSheetInfo.scaledHeight = SPRITE_TILE_SIZE;
 
-    // Todos los bloques comparten el mismo TextureInfo del sprite sheet
+    // Configurar TextureInfo para los árboles (64x64)
+    TextureInfo* treeSpriteSheetInfoPtr = nullptr;
+    if (m_textures.find("tree_sprite_sheet") != m_textures.end()) {
+        auto& treeSpriteSheetInfo = m_textures["tree_sprite_sheet"];
+        treeSpriteSheetInfo.width = TREE_SPRITE_SIZE;  // 64px
+        treeSpriteSheetInfo.height = TREE_SPRITE_SIZE; // 64px
+        treeSpriteSheetInfo.scaledWidth = TREE_SPRITE_SIZE;
+        treeSpriteSheetInfo.scaledHeight = TREE_SPRITE_SIZE;
+        treeSpriteSheetInfoPtr = &treeSpriteSheetInfo;
+    }
+
+    // Todos los bloques de terreno comparten el mismo TextureInfo del sprite sheet
     m_blockTextures[static_cast<int>(BlockType::PASTO)] = &spriteSheetInfo;
     m_blockTextures[static_cast<int>(BlockType::HIERBA_SANGRE)] = &spriteSheetInfo;
     m_blockTextures[static_cast<int>(BlockType::ARENA)] = &spriteSheetInfo;
@@ -180,6 +206,16 @@ bool TextureManager::loadAllTextures() {
     m_blockTextures[static_cast<int>(BlockType::NIEVE)] = &spriteSheetInfo;
     m_blockTextures[static_cast<int>(BlockType::AGUA)] = &spriteSheetInfo;
     m_blockTextures[static_cast<int>(BlockType::AIRE)] = nullptr;  // No se renderiza
+
+    // Los árboles usan el sprite sheet de árboles
+    if (treeSpriteSheetInfoPtr) {
+        m_blockTextures[static_cast<int>(BlockType::ARBOL_SECO)] = treeSpriteSheetInfoPtr;
+        m_blockTextures[static_cast<int>(BlockType::ARBOL_GRASS)] = treeSpriteSheetInfoPtr;
+        m_blockTextures[static_cast<int>(BlockType::ARBOL_SANGRE)] = treeSpriteSheetInfoPtr;
+    }
+
+    // Bloque de colisión invisible para la base de los árboles
+    m_blockTextures[static_cast<int>(BlockType::ARBOL_COLISION)] = nullptr;  // No se renderiza pero es sólido
 
     return success;
 }
@@ -204,7 +240,7 @@ void TextureManager::updateScaledDimensions(float zoom) {
 
 TextureManager::TextureInfo* TextureManager::getBlockTexture(BlockType type) const {
     int index = static_cast<int>(type);
-    if (index >= 0 && index < 10) {
+    if (index >= 0 && index < 14) {  // Cambiado a 14 para incluir ARBOL_COLISION
         return m_blockTextures[index];
     }
     return nullptr;
@@ -239,6 +275,71 @@ SDL_Rect TextureManager::getSpriteSheetRect(BlockType type) const {
         rect.w = 0;
         rect.h = 0;
     }
+
+    return rect;
+}
+
+/**
+ * @brief Obtiene el rectángulo fuente para un árbol del sprite sheet de árboles
+ * @param type Tipo de árbol (ARBOL_SECO, ARBOL_GRASS, ARBOL_SANGRE)
+ * @param worldX Coordenada X mundial (para selección aleatoria)
+ * @param worldZ Coordenada Z mundial (para selección aleatoria)
+ * @return SDL_Rect con el área del sprite sheet correspondiente al árbol
+ *
+ * Los árboles se distribuyen en:
+ * - Fila 1 (0-11): Árboles secos para biomas secos (ARBOL_SECO)
+ * - Filas 2-3 (12-35): Árboles vivos para biomas grass (ARBOL_GRASS)
+ * - Filas 4-5 (36-59): Árboles de sangre para biomas blood_grass (ARBOL_SANGRE)
+ *
+ * La selección específica del árbol dentro de cada grupo es aleatoria
+ * basada en las coordenadas mundiales para consistencia.
+ */
+SDL_Rect TextureManager::getTreeSpriteRect(BlockType type, int worldX, int worldZ) const {
+    SDL_Rect rect;
+    rect.w = TREE_SPRITE_SIZE;
+    rect.h = TREE_SPRITE_SIZE;
+
+    // Determinar el rango de índices según el tipo de árbol
+    int startIndex, endIndex;
+
+    switch (type) {
+        case BlockType::ARBOL_SECO:
+            // Fila 1: 12 árboles secos (índices 0-11)
+            startIndex = 0;
+            endIndex = 11;
+            break;
+        case BlockType::ARBOL_GRASS:
+            // Filas 2-3: 24 árboles vivos (índices 12-35)
+            startIndex = 12;
+            endIndex = 35;
+            break;
+        case BlockType::ARBOL_SANGRE:
+            // Filas 4-5: 24 árboles de sangre (índices 36-59)
+            startIndex = 36;
+            endIndex = 59;
+            break;
+        default:
+            // Tipo inválido, retornar rectángulo vacío
+            rect.x = 0;
+            rect.y = 0;
+            rect.w = 0;
+            rect.h = 0;
+            return rect;
+    }
+
+    // Selección aleatoria pero consistente basada en posición mundial
+    // Usamos una función hash simple para mantener consistencia
+    int treeCount = endIndex - startIndex + 1;
+    int hash = (worldX * 374761393 + worldZ * 668265263) % 1000000007;
+    int treeOffset = abs(hash) % treeCount;
+    int treeIndex = startIndex + treeOffset;
+
+    // Calcular posición en el sprite sheet
+    int column = treeIndex % TREE_SPRITE_COLUMNS;  // 12 columnas
+    int row = treeIndex / TREE_SPRITE_COLUMNS;     // 5 filas (0-4)
+
+    rect.x = column * TREE_SPRITE_SIZE;
+    rect.y = row * TREE_SPRITE_SIZE;
 
     return rect;
 }
@@ -611,7 +712,12 @@ void Renderer::renderWorld(const std::vector<Chunk*>& chunks, const Camera& came
                         // Verificar cara SUPERIOR (y+1) - la más importante en isométrico
                         if (y < BlockConfig::WORLD_HEIGHT - 1) {
                             const Block& above = chunk->getBlockUnsafe(x, y + 1, z);
-                            if (!above.esSolido()) {
+                            // Si el bloque encima es un árbol, consideramos que la cara superior está expuesta
+                            // (queremos ver el grass debajo del árbol)
+                            bool isAboveTree = (above.type == BlockType::ARBOL_SECO ||
+                                              above.type == BlockType::ARBOL_GRASS ||
+                                              above.type == BlockType::ARBOL_SANGRE);
+                            if (!above.esSolido() || isAboveTree) {
                                 hasExposedFace = true;
                             }
                         } else {
@@ -681,6 +787,8 @@ void Renderer::renderWorld(const std::vector<Chunk*>& chunks, const Camera& came
                     tile.y = screenY;
                     tile.type = block.type;
                     tile.worldY = y;
+                    tile.worldX = worldXStart + x;
+                    tile.worldZ = worldZStart + z;
 
                     m_tileCache.push_back(tile);
                     addedBlocks++;
@@ -720,18 +828,35 @@ void Renderer::renderWorld(const std::vector<Chunk*>& chunks, const Camera& came
             textureValid = false;
 
             if (currentTexInfo && currentTexInfo->texture) {
-                currentSrcRect = m_textureManager.getSpriteSheetRect(currentType);
-                if (currentSrcRect.w > 0 && currentSrcRect.h > 0) {
-                    currentScaledWidth = currentTexInfo->scaledWidth;
-                    currentScaledHeight = currentTexInfo->scaledHeight;
-                    textureValid = true;
-                }
+                currentScaledWidth = currentTexInfo->scaledWidth;
+                currentScaledHeight = currentTexInfo->scaledHeight;
+                textureValid = true;
             }
         }
 
         // Renderizar si la textura es válida
         if (textureValid) {
+            // Verificar si es un árbol para obtener el sprite correcto
+            bool isTree = (currentType == BlockType::ARBOL_SECO ||
+                          currentType == BlockType::ARBOL_GRASS ||
+                          currentType == BlockType::ARBOL_SANGRE);
+
+            // Obtener el rectángulo fuente (diferente para cada árbol)
+            if (isTree) {
+                // Cada árbol tiene su propio sprite basado en posición
+                currentSrcRect = m_textureManager.getTreeSpriteRect(currentType, tile.worldX, tile.worldZ);
+            } else {
+                // Los bloques normales comparten el mismo sprite
+                currentSrcRect = m_textureManager.getSpriteSheetRect(currentType);
+            }
+
+            // Si el sprite no es válido, skip
+            if (currentSrcRect.w == 0 || currentSrcRect.h == 0) {
+                continue;
+            }
+
             SDL_Rect destRect;
+            // Centrar el bloque/árbol en la posición
             destRect.x = static_cast<int>(tile.x - currentScaledWidth / 2.0f + 0.5f);
             destRect.y = static_cast<int>(tile.y - currentScaledHeight + 0.5f);
             destRect.w = currentScaledWidth;

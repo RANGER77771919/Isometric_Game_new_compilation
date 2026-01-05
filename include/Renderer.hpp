@@ -28,6 +28,7 @@ struct RenderTile {
     float x, y;       ///< Posición en pantalla (píxeles)
     BlockType type;   ///< Tipo de bloque (determina la textura)
     int worldY;       ///< Altura en el mundo (para orden de profundidad)
+    int worldX, worldZ; ///< Coordenadas mundiales X y Z (para selección de árbol)
 };
 
 /**
@@ -146,15 +147,34 @@ public:
      */
     SDL_Rect getSpriteSheetRect(BlockType type) const;
 
+    /**
+     * @brief Obtiene el rectángulo fuente para un árbol del sprite sheet de árboles
+     * @param type Tipo de árbol (ARBOL_SECO, ARBOL_GRASS, ARBOL_SANGRE)
+     * @param worldX Coordenada X mundial (para selección aleatoria)
+     * @param worldZ Coordenada Z mundial (para selección aleatoria)
+     * @return SDL_Rect con el área del sprite sheet correspondiente al árbol
+     *
+     * Los árboles se distribuyen en:
+     * - Fila 1 (0-11): Árboles secos para biomas secos
+     * - Filas 2-3 (12-35): Árboles vivos para biomas grass
+     * - Filas 4-5 (36-59): Árboles de sangre para biomas blood_grass
+     */
+    SDL_Rect getTreeSpriteRect(BlockType type, int worldX, int worldZ) const;
+
 private:
     SDL_Renderer* m_renderer; ///< Renderer SDL2 para crear texturas
     std::unordered_map<std::string, TextureInfo> m_textures; ///< Mapa de texturas con dimensiones cacheadas
-    std::array<TextureInfo*, 10> m_blockTextures{}; ///< Array de punteros a TextureInfo indexado por BlockType
+    std::array<TextureInfo*, 14> m_blockTextures{}; ///< Array de punteros a TextureInfo indexado por BlockType
     float m_lastZoom = -1.0f;  ///< Último zoom usado para dimensiones escaladas (dirty flag)
 
     // Sprite sheet configuration
     SDL_Texture* m_spriteSheet = nullptr;  ///< Sprite sheet de tiles
     static constexpr int SPRITE_TILE_SIZE = 32;  ///< Tamaño de cada tile en el sprite sheet
+
+    // Tree sprite sheet configuration
+    SDL_Texture* m_treeSpriteSheet = nullptr;  ///< Sprite sheet de árboles
+    static constexpr int TREE_SPRITE_SIZE = 64;  ///< Tamaño de cada árbol en el sprite sheet (64x64)
+    static constexpr int TREE_SPRITE_COLUMNS = 12;  ///< 12 columnas de árboles
 };
 
 /**

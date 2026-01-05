@@ -320,6 +320,7 @@ void World::generateChunk(ChunkPos pos) {
  *    Y < height-4: PIEDRA (con cuevas si caveNoise > 0.4)
  *    Y < height: TIERRA
  *    Y = height: biomeBlock (PASTO, NIEVE, ARENA, etc.)
+ *    Y = height + 1: Posible árbol (probabilidad 0.2 según bioma)
  *    Y > height: AIRE
  *
  * Generación de cuevas:
@@ -436,8 +437,39 @@ void World::generateTerrain(Chunk* chunk) {
                 chunk->setBlockUnsafe(x, y, z, blockType);
             }
 
-            // Guardar altura máxima en el heightmap (para occlusion culling)
-            chunk->setMaxY(x, z, terrainHeight);
+            // Generar árboles con probabilidad 0.1 (10%) - árboles frecuentes
+            float treeChance = (m_rng() % 100) / 100.0f;  // Valor [0.0, 0.99]
+
+            if (treeChance < 0.1f && terrainHeight + 1 < BlockConfig::WORLD_HEIGHT) {
+                // Determinar tipo de árbol según bioma
+                BlockType treeType = BlockType::AIRE;
+
+                if (biomeBlock == BlockType::ARENA || biomeBlock == BlockType::TIERRA) {
+                    // Biomas secos: árboles secos
+                    treeType = BlockType::ARBOL_SECO;
+                } else if (biomeBlock == BlockType::PASTO || biomeBlock == BlockType::PASTO_FULL) {
+                    // Biomas de grass: árboles vivos
+                    treeType = BlockType::ARBOL_GRASS;
+                } else if (biomeBlock == BlockType::HIERBA_SANGRE) {
+                    // Biomas de blood_grass: árboles de sangre
+                    treeType = BlockType::ARBOL_SANGRE;
+                }
+
+                // Colocar el árbol un bloque encima de la superficie
+                if (treeType != BlockType::AIRE) {
+                    // Colocar el árbol visual en terrainHeight + 1
+                    chunk->setBlockUnsafe(x, terrainHeight + 1, z, treeType);
+
+                    // Actualizar heightmap para incluir el árbol
+                    chunk->setMaxY(x, z, terrainHeight + 1);
+                } else {
+                    // Sin árbol, el heightmap es la superficie del terreno
+                    chunk->setMaxY(x, z, terrainHeight);
+                }
+            } else {
+                // No se generó árbol, el heightmap es la superficie del terreno
+                chunk->setMaxY(x, z, terrainHeight);
+            }
         }
     }
 }

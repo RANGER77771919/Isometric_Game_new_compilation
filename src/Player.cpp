@@ -251,7 +251,18 @@ bool Player::tryMove(int dx, int dy, int dz, World* world) {
         const Block& feetBlock = world->getBlock(newX, newY, newZ);
         const Block& headBlock = world->getBlock(newX, newY + 1, newZ);
 
-        canMoveNormally = !feetBlock.esSolido() && !headBlock.esSolido();
+        // El jugador NO puede caminar donde hay un árbol (bloquea cualquier movimiento)
+        bool isTree = (feetBlock.type == BlockType::ARBOL_SECO ||
+                      feetBlock.type == BlockType::ARBOL_GRASS ||
+                      feetBlock.type == BlockType::ARBOL_SANGRE);
+
+        if (isTree) {
+            // Hay un árbol, no se puede mover aquí ni siquiera con auto-jump
+            canMoveNormally = false;
+            needsAutoJump = false;
+        } else {
+            canMoveNormally = !feetBlock.esSolido() && !headBlock.esSolido();
+        }
 
         // Si no se puede mover normalmente, verificar auto-jump
         if (!canMoveNormally && (dx != 0 || dz != 0)) {
@@ -260,8 +271,18 @@ bool Player::tryMove(int dx, int dy, int dz, World* world) {
             const Block& aboveBlock = world->getBlock(newX, m_posY + 1, newZ);
             const Block& headBlock2 = world->getBlock(newX, m_posY + 2, newZ);
 
-            // Bloque al nivel del suelo, espacio arriba
-            bool hasBlockToJump = groundBlock.esSolido() && !aboveBlock.esSolido() && !headBlock2.esSolido();
+            // NO permitir auto-jump sobre árboles
+            bool isGroundTree = (groundBlock.type == BlockType::ARBOL_SECO ||
+                              groundBlock.type == BlockType::ARBOL_GRASS ||
+                              groundBlock.type == BlockType::ARBOL_SANGRE);
+
+            // No permitir auto-jump si el bloque de encima es un árbol
+            bool isAboveTree = (aboveBlock.type == BlockType::ARBOL_SECO ||
+                              aboveBlock.type == BlockType::ARBOL_GRASS ||
+                              aboveBlock.type == BlockType::ARBOL_SANGRE);
+
+            // Bloque al nivel del suelo, espacio arriba, pero NO sobre árboles
+            bool hasBlockToJump = groundBlock.esSolido() && !aboveBlock.esSolido() && !headBlock2.esSolido() && !isAboveTree && !isGroundTree;
 
             // Podemos saltar desde nuestra posición
             const Block& currentAbove1 = world->getBlock(m_posX, m_posY + 1, m_posZ);
@@ -341,8 +362,18 @@ bool Player::canMoveTo(int x, int y, int z, World* world) const {
 
     // OPTIMIZACIÓN: Verificar pies primero (más probable que colisione)
     const Block& feetBlock = world->getBlock(x, y, z);
-    if (feetBlock.esSolido()) {
-        return false;  // Early return
+
+    // El jugador NO puede caminar donde hay un árbol
+    bool isTree = (feetBlock.type == BlockType::ARBOL_SECO ||
+                  feetBlock.type == BlockType::ARBOL_GRASS ||
+                  feetBlock.type == BlockType::ARBOL_SANGRE);
+
+    if (feetBlock.esSolido() && !isTree) {
+        return false;  // Early return - bloque sólido normal
+    }
+
+    if (isTree) {
+        return false;  // Es un árbol, no se puede mover aquí
     }
 
     // Verificar cabeza (jugador tiene altura ~2 bloques)

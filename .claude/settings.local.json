@@ -31,7 +31,8 @@
       "Bash(C:/msys64/ucrt64/lib/libSDL2.dll.a )",
       "Bash(../test_sdl.cpp -o test_sdl.exe )",
       "Bash(nm:*)",
-      "Bash(tee:*)"
+      "Bash(tee:*)",
+      "Bash(rm:*)"
     ]
   }
 }
