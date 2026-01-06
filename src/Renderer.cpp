@@ -797,14 +797,22 @@ void Renderer::renderWorld(const std::vector<Chunk*>& chunks, const Camera& came
         }
     }
 
-    // Ordenar por profundidad (fórmula original) - MANTENER ESTE ORDEN
+    // Ordenar por profundidad isométrica correcta (back-to-front)
+    // Fórmula: depth = X + Z + Y*2 (Y tiene doble peso en isométrico)
     std::sort(m_tileCache.begin(), m_tileCache.end(), [](const RenderTile& a, const RenderTile& b) {
-        // Primero por altura mundial Y (de abajo hacia arriba)
-        if (a.worldY != b.worldY) {
-            return a.worldY < b.worldY;
+        // Calcular profundidad isométrica completa
+        int depthA = a.worldX + a.worldZ + a.worldY * 2;
+        int depthB = b.worldX + b.worldZ + b.worldY * 2;
+
+        if (depthA != depthB) {
+            return depthA < depthB;  // Menor profundidad primero (atrás → adelante)
         }
-        // Si misma altura, usar posición Y en pantalla
-        return a.y < b.y;
+
+        // Criterio de desempate para estabilidad: usar coordenadas completas
+        // Esto asegura que el orden sea siempre consistente para tiles con misma profundidad
+        if (a.worldY != b.worldY) return a.worldY < b.worldY;
+        if (a.worldX != b.worldX) return a.worldX < b.worldX;
+        return a.worldZ < b.worldZ;
     });
 
     // OPTIMIZACIÓN 1: Pre-calcular dimensiones escaladas UNA vez por frame
