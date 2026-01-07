@@ -29,6 +29,7 @@ struct RenderTile {
     BlockType type;   ///< Tipo de bloque (determina la textura)
     int worldY;       ///< Altura en el mundo (para orden de profundidad)
     int worldX, worldZ; ///< Coordenadas mundiales X y Z (para selección de árbol)
+    bool isPlayer;    ///< true si este tile representa al jugador (para renderizado especial)
 };
 
 /**
@@ -271,19 +272,24 @@ public:
      * @brief Renderiza el mundo (todos los chunks visibles)
      * @param chunks Vector de chunks a renderizar
      * @param camera Cámara para proyección
+     * @param playerX Posición X del jugador (opcional, para depth sorting)
+     * @param playerY Posición Y del jugador (opcional, para depth sorting)
+     * @param playerZ Posición Z del jugador (opcional, para depth sorting)
      *
      * Pipeline completo:
      * 1. Recopilar todos los tiles de todos los chunks
-     * 2. Aplicar frustum culling (descartar tiles fuera de pantalla)
-     * 3. Ordenar por profundidad (Y de mundo)
-     * 4. Renderizar cada tile ordenado
+     * 2. Agregar jugador al render list si se proporcionan coordenadas
+     * 3. Aplicar frustum culling (descartar tiles fuera de pantalla)
+     * 4. Ordenar por profundidad (Y de mundo)
+     * 5. Renderizar cada tile ordenado
      *
      * Optimizaciones:
      * - Solo renderiza bloques sólidos
      * - Frustum culling con margen de 100px
      * - Sort por altura Y (no por screenX + screenY)
      */
-    void renderWorld(const std::vector<Chunk*>& chunks, const Camera& camera);
+    void renderWorld(const std::vector<Chunk*>& chunks, const Camera& camera,
+                     float playerX = 0.0f, float playerY = 0.0f, float playerZ = 0.0f);
 
     /**
      * @brief Renderiza el jugador

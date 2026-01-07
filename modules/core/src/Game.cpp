@@ -293,13 +293,16 @@ void Game::render() {
     // OPTIMIZACIÓN FASE 1: Usar move semantics para evitar allocation adicional
     m_visibleChunksCache = std::move(m_world->getChunksAround(camChunkPos, RENDER_RADIUS));
 
-    // Renderizar mundo
-    m_renderer->renderWorld(m_visibleChunksCache, *m_camera);
-
-    // Renderizar player
+    // Obtener posición del jugador ANTES de renderizar (para depth sorting correcto)
     float playerX, playerY, playerZ;
     m_player->getPosition(playerX, playerY, playerZ);
-    m_renderer->renderPlayer(*m_camera, playerX, playerY, playerZ, m_player->getTileName());
+
+    // Renderizar mundo con el jugador integrado en el depth sorting
+    m_renderer->renderWorld(m_visibleChunksCache, *m_camera, playerX, playerY, playerZ);
+
+    // NOTA: El jugador ya se renderiza dentro de renderWorld() con depth correcto
+    // Ya no necesitamos llamar a renderPlayer() por separado
+    // m_renderer->renderPlayer(*m_camera, playerX, playerY, playerZ, m_player->getTileName());
 
     // Presentar renderizado
     m_renderer->present();

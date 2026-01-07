@@ -700,7 +700,8 @@ bool Renderer::isChunkVisible(const Chunk* chunk, const Camera& camera, int scre
              screenY - approximateRadius > screenHeight + margin);
 }
 
-void Renderer::renderWorld(const std::vector<Chunk*>& chunks, const Camera& camera) {
+void Renderer::renderWorld(const std::vector<Chunk*>& chunks, const Camera& camera,
+                           float playerX, float playerY, float playerZ) {
     // OPTIMIZACIÓN: Usar resize(0) en lugar de clear() para mantener capacidad sin reallocation
     m_tileCache.resize(0);
 
@@ -882,6 +883,26 @@ void Renderer::renderWorld(const std::vector<Chunk*>& chunks, const Camera& came
     // OPTIMIZACIÓN FASE 2: Radix Sort O(n) en lugar de std::sort O(n log n)
     // Ordenar por profundidad isométrica correcta (back-to-front)
     // Fórmula: depth = X + Z + Y*2 (Y tiene doble peso en isométrico)
+
+    // INTEGRAR JUGADOR AL DEPTH SORTING
+    // Convertir posición del jugador a coordenadas de pantalla
+    float playerScreenX, playerScreenY;
+    camera.worldToScreen(playerX, playerY, playerZ, playerScreenX, playerScreenY);
+
+    // Crear un RenderTile especial para el jugador
+    RenderTile playerTile;
+    playerTile.x = playerScreenX;
+    playerTile.y = playerScreenY;
+    playerTile.type = BlockType::AIRE; // No usamos type para el jugador
+    playerTile.worldY = static_cast<int>(playerY);
+    playerTile.worldX = static_cast<int>(playerX);
+    playerTile.worldZ = static_cast<int>(playerZ);
+    playerTile.isPlayer = true; // Marcar como jugador
+
+    // Agregar al cache para que el Radix Sort lo ordene con los tiles/árboles
+    m_tileCache.push_back(playerTile);
+
+    // Ordenar TODO (tiles + jugador) por profundidad
     radixSortTilesByDepth(m_tileCache);
 
     // NOTA: Radix sort es estable para claves únicas, pero si hay empates
@@ -902,6 +923,29 @@ void Renderer::renderWorld(const std::vector<Chunk*>& chunks, const Camera& came
     bool textureValid = false;
 
     for (const RenderTile& tile : m_tileCache) {
+        // VERIFICAR SI ES EL JUGADOR
+        if (tile.isPlayer) {
+            // Renderizar jugador con su textura especial
+            SDL_Texture* playerTexture = m_textureManager.getTexture("player");
+            if (playerTexture) {
+                int texWidth, texHeight;
+                SDL_QueryTexture(playerTexture, nullptr, nullptr, &texWidth, &texHeight);
+
+                // Aplicar zoom
+                texWidth = static_cast<int>(texWidth * zoom);
+                texHeight = static_cast<int>(texHeight * zoom);
+
+                SDL_Rect destRect;
+                destRect.x = static_cast<int>(std::round(tile.x - texWidth / 2.0f));
+                destRect.y = static_cast<int>(std::round(tile.y - texHeight));
+                destRect.w = texWidth;
+                destRect.h = texHeight;
+
+                SDL_RenderCopy(m_renderer, playerTexture, nullptr, &destRect);
+            }
+            continue; // Saltar al siguiente tile
+        }
+
         // Si el tipo cambió, necesitamos obtener nueva info de textura
         if (tile.type != currentType) {
             currentType = tile.type;
