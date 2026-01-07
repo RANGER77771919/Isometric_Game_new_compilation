@@ -32,7 +32,10 @@
       "Bash(../test_sdl.cpp -o test_sdl.exe )",
       "Bash(nm:*)",
       "Bash(tee:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash pop:*)",
+      "Bash(/c/msys64/ucrt64/bin/mingw32-make.exe:*)"
     ]
   }
 }
