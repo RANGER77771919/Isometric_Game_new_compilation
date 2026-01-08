@@ -66,7 +66,8 @@ Block& Chunk::getBlock(int x, int y, int z) {
         z < 0 || z >= BlockConfig::CHUNK_SIZE ||
         y < 0 || y >= BlockConfig::WORLD_HEIGHT) {
         // Devolver bloque estático inválido (evita crash)
-        static Block invalidBlock(BlockType::AIRE);
+        // thread_local asegura que cada thread tenga su propia instancia (thread-safe)
+        thread_local Block invalidBlock(BlockType::AIRE);
         return invalidBlock;
     }
 
@@ -79,7 +80,8 @@ Block& Chunk::getBlock(int x, int y, int z) {
     }
 
     // Bloque no existe = AIRE (por defecto)
-    static Block airBlock(BlockType::AIRE);
+    // thread_local asegura que cada thread tenga su propia instancia (thread-safe)
+    thread_local Block airBlock(BlockType::AIRE);
     return airBlock;
 }
 
@@ -99,7 +101,8 @@ const Block& Chunk::getBlock(int x, int y, int z) const {
         z < 0 || z >= BlockConfig::CHUNK_SIZE ||
         y < 0 || y >= BlockConfig::WORLD_HEIGHT) {
         // Devolver bloque estático inválido (evita crash)
-        static Block invalidBlock(BlockType::AIRE);
+        // thread_local asegura que cada thread tenga su propia instancia (thread-safe)
+        thread_local Block invalidBlock(BlockType::AIRE);
         return invalidBlock;
     }
 
@@ -112,7 +115,8 @@ const Block& Chunk::getBlock(int x, int y, int z) const {
     }
 
     // Bloque no existe = AIRE (por defecto)
-    static Block airBlock(BlockType::AIRE);
+    // thread_local asegura que cada thread tenga su propia instancia (thread-safe)
+    thread_local Block airBlock(BlockType::AIRE);
     return airBlock;
 }
 

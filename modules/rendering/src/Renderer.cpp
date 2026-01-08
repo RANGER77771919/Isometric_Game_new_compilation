@@ -240,7 +240,7 @@ void TextureManager::updateScaledDimensions(float zoom) {
 
 TextureManager::TextureInfo* TextureManager::getBlockTexture(BlockType type) const {
     int index = static_cast<int>(type);
-    if (index >= 0 && index < 13) {  // 13 tipos de bloques (0-12)
+    if (index >= 0 && index < static_cast<int>(BlockType::TOTAL_TIPOS)) {
         return m_blockTextures[index];
     }
     return nullptr;

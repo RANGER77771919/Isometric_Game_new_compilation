@@ -244,7 +244,7 @@ private:
     // OPTIMIZACIÓN: Cache de lookup para biomas (3-5% FPS)
     static constexpr int BIOME_CACHE_SIZE = 1024;
     mutable BlockType m_biomeCache[BIOME_CACHE_SIZE];   ///< Cache de biomas por valor de ruido
-    mutable bool m_biomeCacheInitialized = false;       ///< Flag de inicialización
+    mutable std::atomic<bool> m_biomeCacheInitialized{false};  ///< Flag de inicialización (thread-safe)
 
     // OPTIMIZACIÓN 6: Multithreaded Chunk Generation
     std::thread m_chunkGeneratorThread;                 ///< Thread de background para generación

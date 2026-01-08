@@ -231,14 +231,6 @@ void World::chunkGenerationWorker() {
         }
 
         // Generar el chunk FUERA del lock (permite que otros threads agreguen a la cola)
-        // Verificar primero si ya existe (puede haber sido generado mientras estaba en cola)
-        {
-            std::lock_guard<std::mutex> lock(m_chunkQueueMutex);
-            if (m_chunks.find(posToGenerate) != m_chunks.end()) {
-                continue;  // Ya existe, saltar
-            }
-        }
-
         // Generar el chunk (llamada sincrónica interna al worker)
         std::unique_ptr<Chunk> chunk;
 
@@ -254,12 +246,20 @@ void World::chunkGenerationWorker() {
 
         // Generar terreno
         generateTerrain(chunk.get());
+        chunk->setGenerated(true);
 
-        // Marcar como generado y almacenar (necesita lock)
+        // Intentar insertar el chunk - si ya existe, descartar este
+        // try_emplace es thread-safe: solo inserta si la clave no existe
         {
             std::lock_guard<std::mutex> lock(m_chunkQueueMutex);
-            chunk->setGenerated(true);
-            m_chunks[posToGenerate] = std::move(chunk);
+            auto [it, inserted] = m_chunks.try_emplace(posToGenerate, std::move(chunk));
+
+            // Si no se insertó (ya existía), devolver al object pool
+            if (!inserted && it->second.get()) {
+                // El chunk generado no se usó, devolverlo al pool
+                // Nota: it->second es el chunk que ya existía, no el que acabamos de crear
+                // El chunk que creamos se destruye automáticamente porque unique_ptr se movió
+            }
         }
     }
 }
@@ -552,30 +552,45 @@ std::vector<Chunk*> World::getChunksAround(ChunkPos center, int radius) {
     std::vector<Chunk*> chunks;
     chunks.reserve(expectedSize);
 
-    // Recorrer área cuadrada alrededor del centro
+    // Recopilar todas las posiciones que necesitamos
+    std::vector<ChunkPos> positions;
+    positions.reserve(expectedSize);
+
     for (int x = center.x - radius; x <= center.x + radius; x++) {
         for (int z = center.z - radius; z <= center.z + radius; z++) {
-            ChunkPos pos(x, z);
-
-            // OPTIMIZACIÓN 6: Verificar chunk existente con lock mínimo
-            Chunk* chunk = nullptr;
-            {
-                std::lock_guard<std::mutex> lock(m_chunkQueueMutex);
-                auto it = m_chunks.find(pos);
-                if (it != m_chunks.end()) {
-                    chunk = it->second.get();
-                }
-            }
-
-            // Si existe y está generado, agregarlo
-            if (chunk && chunk->isGenerated()) {
-                chunks.push_back(chunk);
-            } else if (!chunk) {
-                // No existe, solicitar generación asíncrona
-                requestChunkGeneration(pos);
-            }
-            // Si existe pero no está generado, esperar al siguiente frame
+            positions.push_back(ChunkPos(x, z));
         }
+    }
+
+    // Copiar todos los punteros de chunks DENTRO del lock (evita use-after-free)
+    std::vector<Chunk*> chunksToCheck;
+    std::vector<ChunkPos> missingChunks;
+
+    {
+        std::lock_guard<std::mutex> lock(m_chunkQueueMutex);
+        chunksToCheck.reserve(expectedSize);
+        missingChunks.reserve(expectedSize);
+
+        for (const ChunkPos& pos : positions) {
+            auto it = m_chunks.find(pos);
+            if (it != m_chunks.end()) {
+                chunksToCheck.push_back(it->second.get());
+            } else {
+                missingChunks.push_back(pos);
+            }
+        }
+    }
+
+    // FUERA del lock: procesar los chunks y solicitar los faltantes
+    for (Chunk* chunk : chunksToCheck) {
+        if (chunk && chunk->isGenerated()) {
+            chunks.push_back(chunk);
+        }
+    }
+
+    // Solicitar generación de chunks faltantes
+    for (const ChunkPos& pos : missingChunks) {
+        requestChunkGeneration(pos);
     }
 
     return chunks;
