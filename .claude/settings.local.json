@@ -35,7 +35,21 @@
       "Bash(rm:*)",
       "Bash(git checkout:*)",
       "Bash(git stash pop:*)",
-      "Bash(/c/msys64/ucrt64/bin/mingw32-make.exe:*)"
+      "Bash(/c/msys64/ucrt64/bin/mingw32-make.exe:*)",
+      "Bash(wc:*)",
+      "Bash(/c/msys64/ucrt64/bin/c++.exe:*)",
+      "Bash(LDFLAGS=\"--verbose\" cmake:*)",
+      "Bash(/c/msys64/ucrt64/bin/g++.exe:*)",
+      "Bash(find:*)",
+      "Bash(../bx/tools/bin/windows/genie.exe:*)",
+      "Bash(MINGW=/c/msys64/ucrt64 ../bx/tools/bin/windows/genie.exe:*)",
+      "Bash(tasklist:*)",
+      "Bash(taskkill:*)",
+      "Bash(ln:*)",
+      "Bash(export PATH:*)",
+      "Bash(export PATH=\"/c/msys64/ucrt64/bin:/usr/bin:$PATH:*)",
+      "Bash(g++:*)",
+      "Bash(./libs/bx/tools/bin/windows/genie.exe:*)"
     ]
   }
 }
