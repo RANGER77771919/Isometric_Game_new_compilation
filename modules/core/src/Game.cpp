@@ -67,12 +67,21 @@ bool Game::init() {
 
 void Game::run() {
     m_lastFrameTime = SDL_GetTicks64();
+    m_fpsUpdateTime = m_lastFrameTime;
 
     while (m_state.running) {
         // Calcular deltaTime
         Uint64 currentTime = SDL_GetTicks64();
         float deltaTime = (currentTime - m_lastFrameTime) / 1000.0f;
         m_lastFrameTime = currentTime;
+
+        // FPS Counter: Calcular FPS cada segundo
+        m_frameCount++;
+        if (currentTime - m_fpsUpdateTime >= 1000) {
+            m_currentFPS = m_frameCount;
+            m_frameCount = 0;
+            m_fpsUpdateTime = currentTime;
+        }
 
         // Procesar input
         handleInput();
@@ -85,11 +94,12 @@ void Game::run() {
         // Renderizar
         render();
 
-        // Limitar FPS
-        Uint64 frameTime = SDL_GetTicks64() - currentTime;
-        if (frameTime < FRAME_DELAY) {
-            SDL_Delay(FRAME_DELAY - frameTime);
-        }
+        // Sin límite de FPS - rendimiento máximo
+        // (comentado para permitir FPS ilimitado)
+        // Uint64 frameTime = SDL_GetTicks64() - currentTime;
+        // if (frameTime < FRAME_DELAY) {
+        //     SDL_Delay(FRAME_DELAY - frameTime);
+        // }
     }
 }
 
@@ -303,6 +313,9 @@ void Game::render() {
     // NOTA: El jugador ya se renderiza dentro de renderWorld() con depth correcto
     // Ya no necesitamos llamar a renderPlayer() por separado
     // m_renderer->renderPlayer(*m_camera, playerX, playerY, playerZ, m_player->getTileName());
+
+    // Dibujar FPS en esquina superior izquierda
+    m_renderer->drawFPS(m_currentFPS);
 
     // Presentar renderizado
     m_renderer->present();

@@ -303,6 +303,15 @@ public:
     void renderPlayer(const Camera& camera, float playerX, float playerY, float playerZ, const char* tileName);
 
     /**
+     * @brief Dibuja el contador de FPS en la esquina de la pantalla
+     * @param fps Valor de FPS a dibujar
+     *
+     * Dibuja los FPS como texto segmentado en la esquina superior izquierda.
+     * Usa SDL_RenderDrawLine para dibujar dígitos de 7 segmentos.
+     */
+    void drawFPS(int fps);
+
+    /**
      * @brief Obtiene el renderer SDL2 subyacente
      * @return Puntero al renderer SDL2
      */

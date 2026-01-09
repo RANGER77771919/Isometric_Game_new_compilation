@@ -238,6 +238,11 @@ private:
     const int FPS = 60;                      ///< Objetivo de FPS
     const int FRAME_DELAY = 1000 / FPS;       ///< Delay por frame (ms) para 60 FPS
 
+    // Contador de FPS
+    Uint64 m_fpsUpdateTime = 0;           ///< Última vez que se actualizaron los FPS (ms)
+    int m_frameCount = 0;                  ///< Contador de frames desde la última actualización
+    int m_currentFPS = 0;                  ///< FPS actual (calculado cada segundo)
+
     // Configuración de carga de chunks optimizada
     static constexpr int RENDER_RADIUS = 5;       ///< Radio de chunks a renderizar (11x11 = 121)
     static constexpr int LOAD_RADIUS = 6;         ///< Radio de chunks en memoria (13x13 = 169)

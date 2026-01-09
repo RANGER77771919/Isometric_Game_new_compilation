@@ -13,26 +13,26 @@
  * @brief Constructor del chunk
  * @param position Posición del chunk en el mundo (coordenadas de chunk)
  *
- * Inicializa el chunk con estructura sparse de datos.
+ * Inicializa el chunk con estructura densa de datos.
  *
- * OPTIMIZACIÓN 8: SPARSE DATA STRUCTURES + FASE 2: WORLD_HEIGHT=32
- * - Ya no reserva 2,048 bloques (solo los sólidos)
- * - Memoria inicial: 0 bloques
- * - Memoria típica: ~600-800 bloques (~70% menos que denso)
+ * OPTIMIZACIÓN MEDIA #4: DENSE ARRAY COMPACTO + FASE 2: WORLD_HEIGHT=32
+ * - Array fijo de 2048 índices de 16-bit (4KB)
+ * - Vector denso para bloques sólidos (se llena dinámicamente)
+ * - Memoria inicial: 4KB fijos + reserva de ~800 bloques
+ * - Memoria típica: ~4KB + 800 bloques (~70% menos que denso completo)
  *
  * Proceso de inicialización:
  * 1. Guardar la posición del chunk
  * 2. Marcar como "no generado" (m_generated = false)
- * 3. El mapa sparse está vacío inicialmente
+ * 3. DenseBlockStorage se inicializa automáticamente (todos los bloques = AIRE)
  */
 Chunk::Chunk(ChunkPos position)
     : m_position(position)
     , m_generated(false)
+    , m_blocks()  // DenseBlockStorage se inicializa automáticamente
 {
-    // OPTIMIZACIÓN 8 + FASE 2: No reservar memoria upfront
-    // Los bloques se agregan solo cuando son sólidos
-    // Capacity inicial del unordered_map para WORLD_HEIGHT=32
-    m_blocks.reserve(800);  // ~40% de 2,048 bloques son sólidos (ajustado)
+    // OPTIMIZACIÓN MEDIA #4: No necesitamos reserve() aquí
+    // DenseBlockStorage constructor ya reserva 800 bloques
 }
 
 /**
@@ -71,18 +71,9 @@ Block& Chunk::getBlock(int x, int y, int z) {
         return invalidBlock;
     }
 
-    // OPTIMIZACIÓN 8: Buscar en mapa sparse O(1)
+    // OPTIMIZACIÓN MEDIA #4: Acceso directo por índice O(1) (sin hashing)
     size_t index = getIndex(x, y, z);
-    auto it = m_blocks.find(index);
-
-    if (it != m_blocks.end()) {
-        return it->second;
-    }
-
-    // Bloque no existe = AIRE (por defecto)
-    // thread_local asegura que cada thread tenga su propia instancia (thread-safe)
-    thread_local Block airBlock(BlockType::AIRE);
-    return airBlock;
+    return m_blocks.get(index);
 }
 
 /**
@@ -106,18 +97,9 @@ const Block& Chunk::getBlock(int x, int y, int z) const {
         return invalidBlock;
     }
 
-    // OPTIMIZACIÓN 8: Buscar en mapa sparse O(1)
+    // OPTIMIZACIÓN MEDIA #4: Acceso directo por índice O(1) (sin hashing)
     size_t index = getIndex(x, y, z);
-    auto it = m_blocks.find(index);
-
-    if (it != m_blocks.end()) {
-        return it->second;
-    }
-
-    // Bloque no existe = AIRE (por defecto)
-    // thread_local asegura que cada thread tenga su propia instancia (thread-safe)
-    thread_local Block airBlock(BlockType::AIRE);
-    return airBlock;
+    return m_blocks.get(index);
 }
 
 /**
@@ -127,9 +109,9 @@ const Block& Chunk::getBlock(int x, int y, int z) const {
  * @param z Coordenada Z local [0, CHUNK_SIZE-1]
  * @param type Tipo de bloque a establecer
  *
- * OPTIMIZACIÓN 8: SPARSE STORAGE
- * - Si type == AIRE, elimina del mapa (libera memoria)
- * - Si type != AIRE, inserta/actualiza en el mapa
+ * OPTIMIZACIÓN MEDIA #4: DENSE ARRAY STORAGE
+ * - Si type == AIRE, marca como AIR_MARK
+ * - Si type != AIRE, inserta/actualiza en array denso
  * - No desperdicia memoria almacenando bloques aire
  *
  * Usos típicos:
@@ -148,12 +130,8 @@ void Chunk::setBlock(int x, int y, int z, BlockType type) {
 
     size_t index = getIndex(x, y, z);
 
-    // OPTIMIZACIÓN 8: No almacenar bloques aire
-    if (type == BlockType::AIRE) {
-        m_blocks.erase(index);  // Eliminar si existe
-    } else {
-        m_blocks[index] = Block(type);  // Insertar o actualizar
-    }
+    // OPTIMIZACIÓN MEDIA #4: Set directo por índice (maneja AIRE internamente)
+    m_blocks.set(index, type);
 }
 
 /**

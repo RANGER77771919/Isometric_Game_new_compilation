@@ -415,11 +415,11 @@ Renderer::Renderer(SDL_Window* window)
     // Pre-asignar cache de tiles (capacidad para ~200k tiles)
     m_tileCache.reserve(200000);
 
-    // Crear renderer con aceleración hardware y VSync
+    // Crear renderer con aceleración hardware SIN VSync (para FPS ilimitados)
     m_renderer = SDL_CreateRenderer(
         m_window,
         -1,  // Driver por defecto
-        SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
+        SDL_RENDERER_ACCELERATED  // SIN SDL_RENDERER_PRESENTVSYNC
     );
 
     if (!m_renderer) {
@@ -730,19 +730,20 @@ void Renderer::renderWorld(const std::vector<Chunk*>& chunks, const Camera& came
         int worldZStart = chunkPos.z * BlockConfig::CHUNK_SIZE;
 
         // OPTIMIZACIÓN 9: LOD SYSTEM - Calcular distancia del chunk al jugador
+        // QUICK WIN #1: AGGRESSIVE LOD - Thresholds reducidos para más culling agresivo
         float chunkCenterX = worldXStart + BlockConfig::CHUNK_SIZE * 0.5f;
         float chunkCenterZ = worldZStart + BlockConfig::CHUNK_SIZE * 0.5f;
         float distX = chunkCenterX - camX;
         float distZ = chunkCenterZ - camZ;
         float distanceSquared = distX * distX + distZ * distZ;
 
-        // Determinar nivel de detalle según distancia
-        // LOD 0: 0-8 chunks (completo)
-        // LOD 1: 8-16 chunks (medio)
-        // LOD 2: 16+ chunks (mínimo)
+        // Determinar nivel de detalle según distancia (AGGRESSIVE LOD)
+        // LOD 0: 0-6 chunks (completo) - reducido de 8
+        // LOD 1: 6-10 chunks (medio) - reducido de 8-16
+        // LOD 2: 10+ chunks (mínimo) - reducido de 16
         int lodLevel = 0;
-        const float lod1Distance = BlockConfig::CHUNK_SIZE * 8.0f;  // ~64 bloques
-        const float lod2Distance = BlockConfig::CHUNK_SIZE * 16.0f; // ~128 bloques
+        const float lod1Distance = BlockConfig::CHUNK_SIZE * 6.0f;  // ~48 bloques (reducido de 64)
+        const float lod2Distance = BlockConfig::CHUNK_SIZE * 10.0f; // ~80 bloques (reducido de 128)
 
         if (distanceSquared > lod2Distance * lod2Distance) {
             lodLevel = 2;  // Muy lejos - mínimo detalle
@@ -843,25 +844,34 @@ void Renderer::renderWorld(const std::vector<Chunk*>& chunks, const Camera& came
                         }
                     }
 
-                    // Si ninguna cara está expuesta, el bloque está completamente oculto
-                    if (!hasExposedFace) {
-                        continue;  // Skip - occlusion culling
-                    }
-
-                    // Frustum culling básico
+                    // QUICK WIN #3: Per-Block Frustum Culling optimizado según LOD
                     float worldX = static_cast<float>(worldXStart + x);
                     float worldZ = static_cast<float>(worldZStart + z);
-
                     float screenX, screenY;
                     camera.worldToScreen(worldX, static_cast<float>(y), worldZ, screenX, screenY);
 
-                    // Verificar si está dentro de la pantalla (con margen)
-                    const int margin = 100;
+                    // Para LOD 2 (muy lejos), hacer culling más agresivo sin face checking previo
+                    if (lodLevel >= 2) {
+                        // Frustum culling agresivo para LOD 2 (menos margen)
+                        const int margin = 20;  // Solo 20px margen para bloques lejanos
+                        if (screenX < -margin || screenX > screenWidth + margin ||
+                            screenY < -margin || screenY > screenHeight + margin) {
+                            culledBlocks++;
+                            continue;  // Fuera de pantalla
+                        }
+                    } else {
+                        // Para LOD 0 y 1, hacer face culling primero (más preciso pero más costoso)
+                        if (!hasExposedFace) {
+                            continue;  // Skip - occlusion culling
+                        }
 
-                    if (screenX < -margin || screenX > screenWidth + margin ||
-                        screenY < -margin || screenY > screenHeight + margin) {
-                        culledBlocks++;
-                        continue;  // Fuera de pantalla
+                        // Frustum culling normal para chunks cercanos
+                        const int margin = 100;  // Margen generoso para bloques cercanos
+                        if (screenX < -margin || screenX > screenWidth + margin ||
+                            screenY < -margin || screenY > screenHeight + margin) {
+                            culledBlocks++;
+                            continue;  // Fuera de pantalla
+                        }
                     }
 
                     // Agregar a la lista
@@ -1040,4 +1050,127 @@ void Renderer::setClearColor(Uint8 r, Uint8 g, Uint8 b) {
     m_clearR = r;
     m_clearG = g;
     m_clearB = b;
+}
+
+/**
+ * @brief Dibuja un dígito de 7 segmentos
+ * @param x, y Posición del dígito
+ * @param digit Dígito a dibujar (0-9)
+ * @param scale Escala del dígito
+ * @param color Color RGB para el dígito
+ */
+static void drawDigit(SDL_Renderer* renderer, int x, int y, int digit, int scale, Uint8 color[3]) {
+    // Patrones de 7 segmentos (A=top, B=top-right, C=bottom-right, D=bottom, E=bottom-left, F=top-left, G=middle)
+    static const bool segments[10][7] = {
+        {1, 1, 1, 1, 1, 1, 0}, // 0: ABCDEF
+        {0, 1, 1, 0, 0, 0, 0}, // 1: BC
+        {1, 1, 0, 1, 1, 0, 1}, // 2: ABDEG
+        {1, 1, 1, 1, 0, 0, 1}, // 3: ABCDG
+        {0, 1, 1, 0, 0, 1, 1}, // 4: BCFG
+        {1, 0, 1, 1, 0, 1, 1}, // 5: ACDFG
+        {1, 0, 1, 1, 1, 1, 1}, // 6: ACDEFG
+        {1, 1, 1, 0, 0, 0, 0}, // 7: ABC
+        {1, 1, 1, 1, 1, 1, 1}, // 8: ABCDEFG
+        {1, 1, 1, 1, 0, 1, 1}  // 9: ABCDFG
+    };
+
+    if (digit < 0 || digit > 9) return;
+
+    const bool* seg = segments[digit];
+    int w = scale * 3;  // ancho total del dígito
+    int h = scale * 5;  // alto total del dígito
+    int thick = scale / 2;  // grosor de las líneas (más grueso)
+
+    SDL_SetRenderDrawColor(renderer, color[0], color[1], color[2], 255);
+
+    // Segmento A (top horizontal)
+    if (seg[0]) {
+        SDL_RenderDrawLine(renderer, x, y, x + w, y);
+        SDL_RenderDrawLine(renderer, x, y + 1, x + w, y + 1);  // Más grueso
+        SDL_RenderDrawLine(renderer, x, y + 2, x + w, y + 2);
+    }
+
+    // Segmento B (top-right vertical)
+    if (seg[1]) {
+        SDL_RenderDrawLine(renderer, x + w, y, x + w, y + h / 2);
+        SDL_RenderDrawLine(renderer, x + w - 1, y, x + w - 1, y + h / 2);
+        SDL_RenderDrawLine(renderer, x + w - 2, y, x + w - 2, y + h / 2);
+    }
+
+    // Segmento C (bottom-right vertical)
+    if (seg[2]) {
+        SDL_RenderDrawLine(renderer, x + w, y + h / 2, x + w, y + h);
+        SDL_RenderDrawLine(renderer, x + w - 1, y + h / 2, x + w - 1, y + h);
+        SDL_RenderDrawLine(renderer, x + w - 2, y + h / 2, x + w - 2, y + h);
+    }
+
+    // Segmento D (bottom horizontal)
+    if (seg[3]) {
+        SDL_RenderDrawLine(renderer, x, y + h, x + w, y + h);
+        SDL_RenderDrawLine(renderer, x, y + h - 1, x + w, y + h - 1);
+        SDL_RenderDrawLine(renderer, x, y + h - 2, x + w, y + h - 2);
+    }
+
+    // Segmento E (bottom-left vertical)
+    if (seg[4]) {
+        SDL_RenderDrawLine(renderer, x, y + h / 2, x, y + h);
+        SDL_RenderDrawLine(renderer, x + 1, y + h / 2, x + 1, y + h);
+        SDL_RenderDrawLine(renderer, x + 2, y + h / 2, x + 2, y + h);
+    }
+
+    // Segmento F (top-left vertical)
+    if (seg[5]) {
+        SDL_RenderDrawLine(renderer, x, y, x, y + h / 2);
+        SDL_RenderDrawLine(renderer, x + 1, y, x + 1, y + h / 2);
+        SDL_RenderDrawLine(renderer, x + 2, y, x + 2, y + h / 2);
+    }
+
+    // Segmento G (middle horizontal)
+    if (seg[6]) {
+        SDL_RenderDrawLine(renderer, x, y + h / 2, x + w, y + h / 2);
+        SDL_RenderDrawLine(renderer, x, y + h / 2 - 1, x + w, y + h / 2 - 1);
+        SDL_RenderDrawLine(renderer, x, y + h / 2 + 1, x + w, y + h / 2 + 1);
+    }
+}
+
+/**
+ * @brief Dibuja el contador de FPS en pantalla
+ * @param fps Valor de FPS a dibujar
+ */
+void Renderer::drawFPS(int fps) {
+    const int startX = 20;
+    const int startY = 20;
+    const int scale = 8;
+    const int digitWidth = scale * 4;  // Aumentado: más espacio entre dígitos
+    Uint8 color[3] = {255, 255, 0};  // Amarillo brillante
+
+    // Extraer dígitos
+    int fpsCopy = fps;
+    int digits[3] = {0};
+    int numDigits = 0;
+
+    if (fpsCopy == 0) {
+        digits[0] = 0;
+        numDigits = 1;
+    } else {
+        while (fpsCopy > 0 && numDigits < 3) {
+            digits[numDigits++] = fpsCopy % 10;
+            fpsCopy /= 10;
+        }
+    }
+
+    // Dibujar dígitos de derecha a izquierda
+    for (int i = numDigits - 1; i >= 0; i--) {
+        int x = startX + (numDigits - 1 - i) * digitWidth;
+        drawDigit(m_renderer, x, startY, digits[i], scale, color);
+    }
+
+    // Dibujar "FPS:" texto simple
+    SDL_Rect fpsRect;
+    fpsRect.x = startX + numDigits * digitWidth + 8;
+    fpsRect.y = startY + scale;
+    fpsRect.w = 4;
+    fpsRect.h = scale * 2;
+    SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 255);
+    SDL_RenderFillRect(m_renderer, &fpsRect);  // Barra vertical (F)
 }
